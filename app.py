@@ -15,7 +15,7 @@ def fetch_poster(movie_id):
 
 # Function to recommend similar movies
 def recommend(movie):
-    movie_index = movies[movies['title'] == movie].index[0]
+    movie_index = movies[movies['original_title'] == movie].index[0]
     distances = similarity[movie_index]
     movies_list = sorted(list(enumerate(distances)), reverse=True, key=lambda x: x[1])[1:6]
 
@@ -24,7 +24,7 @@ def recommend(movie):
     
     for i in movies_list:
         movie_id = movies.iloc[i[0]].id_x
-        recommended_movies.append(movies.iloc[i[0]].title)
+        recommended_movies.append(movies.iloc[i[0]].original_title)
         poster_url = fetch_poster(movie_id)
         recommended_posters.append(poster_url)
     
@@ -36,11 +36,12 @@ movies = pd.DataFrame(movies_dict)
 similarity = pickle.load(open('similarity.pkl', 'rb'))
 
 # Streamlit interface
+
 st.title('Movie Recommender System')
 
 selected_movie_name = st.selectbox(
     'Select a movie',
-    movies['title'].values)
+    movies['original_title'].values)
 
 if st.button('Recommend'):
     names, posters = recommend(selected_movie_name)
