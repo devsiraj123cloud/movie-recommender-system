@@ -73,7 +73,7 @@ python gradio_app.py
 ### Enhanced Movie Recommender
 For the full-featured experience with analytics and multiple algorithms:
 ```bash
-python simple_app.py
+python simple_Demo.py
 ```
 
 ### Advanced System
@@ -89,7 +89,7 @@ python enhanced_app.py
 - Movie poster display
 - Clean, minimalist interface
 
-### 2. Enhanced Recommender (`simple_app.py`)
+### 2. Enhanced Recommender (`simple_Demo.py`)
 - **Main Tab**: Core recommendation functionality
 - **Analytics Tab**: User interaction statistics and visualizations
 - **A/B Testing Tab**: Algorithm performance comparison
@@ -114,7 +114,7 @@ python enhanced_app.py
 ```
 movie-recommender-system/
 ├── gradio_app.py              # Simple Gradio app
-├── simple_app.py              # Enhanced multi-tab app
+├── simple_Demo.py             # Enhanced multi-tab app
 ├── enhanced_app.py            # Advanced system
 ├── reinforcement_learning.py  # Multi-Armed Bandit implementation
 ├── setup_enhanced.py          # Database and data setup
