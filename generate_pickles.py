@@ -1,62 +1,93 @@
-import pandas as pd
-import numpy as np
+import ast
+import json
+import os
 import pickle
+from pathlib import Path
+
+import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-# Load datasets
-df_movies = pd.read_csv('C:/Users/siraj/Desktop/New folder (5)/tmdb_5000_movies.csv')
-df_credits = pd.read_csv('C:/Users/siraj/Desktop/New folder (5)/tmdb_5000_credits.csv')
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = Path(os.getenv("MOVIE_DATA_DIR", BASE_DIR / "data"))
+MOVIES_CSV = DATA_DIR / "tmdb_5000_movies.csv"
+CREDITS_CSV = DATA_DIR / "tmdb_5000_credits.csv"
+MOVIE_DICT_PATH = BASE_DIR / "movie_dict.pkl"
+SIMILARITY_PATH = BASE_DIR / "similarity.pkl"
 
-# Merge on 'id' and 'movie_id'
-df_credits.rename(columns={'movie_id': 'id'}, inplace=True)
-df = df_movies.merge(df_credits, on='id')
 
-# Select relevant features
-def get_director(x):
-    for i in eval(x):
-        if i['job'] == 'Director':
-            return i['name']
-    return ''
+def parse_structured(value):
+    if pd.isna(value) or not str(value).strip():
+        return []
+    text = str(value)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        try:
+            return ast.literal_eval(text)
+        except (ValueError, SyntaxError):
+            return []
 
-def get_top_cast(x):
-    return ' '.join([i['name'] for i in eval(x)[:3]])
 
-def get_genres(x):
-    return ' '.join([i['name'] for i in eval(x)])
+def get_director(value):
+    for item in parse_structured(value):
+        if item.get("job") == "Director":
+            return item.get("name", "")
+    return ""
 
-def get_keywords(x):
-    return ' '.join([i['name'] for i in eval(x)])
 
-df['director'] = df['crew'].apply(get_director)
-df['top_cast'] = df['cast'].apply(get_top_cast)
-df['genres'] = df['genres'].apply(get_genres)
-df['keywords'] = df['keywords'].apply(get_keywords)
-df['tags'] = df['overview'] + ' ' + df['genres'] + ' ' + df['director'] + ' ' + df['top_cast'] + ' ' + df['keywords']
-df['tags'] = df['tags'].str.lower()
-df['tags'] = df['tags'].fillna('')
+def get_names(value):
+    return " ".join(
+        item.get("name", "") for item in parse_structured(value) if item.get("name")
+    )
 
-# Vectorize tags
-cv = CountVectorizer(max_features=5000, stop_words='english')
-vectors = cv.fit_transform(df['tags']).toarray()
 
-# Compute similarity matrix
+def get_top_cast(value, limit=3):
+    return " ".join(
+        item.get("name", "")
+        for item in parse_structured(value)[:limit]
+        if item.get("name")
+    )
+
+
+if not MOVIES_CSV.exists() or not CREDITS_CSV.exists():
+    raise FileNotFoundError(
+        "Dataset files not found. Put tmdb_5000_movies.csv and "
+        "tmdb_5000_credits.csv inside data/, or set MOVIE_DATA_DIR."
+    )
+
+movies_df = pd.read_csv(MOVIES_CSV)
+credits_df = pd.read_csv(CREDITS_CSV).rename(columns={"movie_id": "id"})
+df = movies_df.merge(credits_df, on="id")
+
+df["director"] = df["crew"].apply(get_director)
+df["top_cast"] = df["cast"].apply(get_top_cast)
+df["genres"] = df["genres"].apply(get_names)
+df["keywords"] = df["keywords"].apply(get_names)
+
+for column in ["overview", "genres", "director", "top_cast", "keywords"]:
+    df[column] = df[column].fillna("").astype(str)
+
+df["tags"] = (
+    df["overview"] + " " + df["genres"] + " " + df["director"] + " "
+    + df["top_cast"] + " " + df["keywords"]
+).str.lower()
+
+vectorizer = CountVectorizer(max_features=5000, stop_words="english")
+vectors = vectorizer.fit_transform(df["tags"]).toarray()
 similarity = cosine_similarity(vectors)
 
-# Prepare movie dictionary
-movie_dict = df[['id', 'original_title']].to_dict('records')
+movie_dict = df[
+    ["id", "original_title", "genres", "director", "top_cast", "keywords", "overview"]
+].to_dict("records")
 
-# Save pickle files
-try:
-    with open('movie_dict.pkl', 'wb') as f:
-        pickle.dump(movie_dict, f)
-    print('movie_dict.pkl saved successfully.')
-except Exception as e:
-    print(f'Error saving movie_dict.pkl: {e}')
+with open(MOVIE_DICT_PATH, "wb") as file:
+    pickle.dump(movie_dict, file)
 
-try:
-    with open('similarity.pkl', 'wb') as f:
-        pickle.dump(similarity, f)
-    print('similarity.pkl saved successfully.')
-except Exception as e:
-    print(f'Error saving similarity.pkl: {e}')
+with open(SIMILARITY_PATH, "wb") as file:
+    pickle.dump(similarity, file)
+
+print(f"Generated {MOVIE_DICT_PATH}")
+print(f"Generated {SIMILARITY_PATH}")
+print(f"Movies: {len(movie_dict)}")
+print(f"Feature matrix: {vectors.shape}")
